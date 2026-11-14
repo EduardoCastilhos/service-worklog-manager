@@ -1,0 +1,353 @@
+// Gera o cliente usado pelo backend em src/generated/prisma.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+// A URL da conexão é fornecida por prisma.config.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+// O andamento do trabalho é independente do recebimento financeiro.
+enum SituacaoServico {
+  ABERTO
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
+}
+
+// Reserva o modo de cobrança da ordem para parcelamentos futuros.
+enum CondicaoPagamento {
+  A_VISTA
+  PARCELADO
+}
+
+// Classifica materiais, terceirizações e outras despesas de uma etapa.
+enum TipoItem {
+  MATERIAL
+  SERVICO_TERCEIRIZADO
+  OUTRA_DESPESA
+}
+
+// Formas aceitas pelos lançamentos de recebimento.
+enum FormaPagamento {
+  PIX
+  DINHEIRO
+  TRANSFERENCIA
+  CARTAO_DEBITO
+  CARTAO_CREDITO
+  OUTRO
+}
+
+// Conta proprietária dos clientes, ordens, agendamentos e sessões.
+model Usuario {
+  id                  String  @id @default(uuid()) @db.Uuid
+  nome                String
+  email               String  @unique
+  senhaHash           String
+  valorHora           Decimal @db.Decimal(12, 2)
+  valorDeslocamento   Decimal @db.Decimal(12, 2)
+  tarifasConfiguradas Boolean @default(false)
+  ativo               Boolean @default(false)
+
+  // Define o fuso usado pela aplicação para exibir datas e horários.
+  fusoHorario String @default("America/Sao_Paulo")
+
+  // Segredo compartilhado com o Google Authenticator.
+  // O backend deve criptografá-lo antes de salvar.
+  // Não é o código temporário de seis dígitos.
+  segredoTotpCriptografado String?
+
+  // Preenchido depois que o usuário configura e confirma
+  // a autenticação em duas etapas.
+  autenticacaoDoisFatoresAtivadaEm DateTime? @db.Timestamptz(3)
+
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+
+  clientes           Cliente[]
+  ordensServico      OrdemServico[]
+  sessoesAcesso      SessaoAcesso[]
+  codigosRecuperacao CodigoRecuperacao[]
+  contasPagar        ContaPagar[]
+  agendamentos       Agendamento[]
+}
+
+// Cliente pertence a uma conta e pode ser arquivado sem apagar o histórico.
+model Cliente {
+  id           String    @id @default(uuid()) @db.Uuid
+  usuarioId    String    @db.Uuid
+  nomeCliente  String
+  documento    String?
+  email        String?
+  telefone     String?
+  endereco     String?
+  observacoes  String?
+  arquivadoEm  DateTime? @db.Timestamptz(3)
+  criadoEm     DateTime  @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime  @updatedAt @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  ordensServico OrdemServico[]
+  agendamentos  Agendamento[]
+
+  @@unique([id, usuarioId])
+  @@unique([usuarioId, documento])
+  @@index([usuarioId, nomeCliente])
+}
+
+// Contrato de trabalho: agrega etapas, ajustes e pagamentos recebidos.
+model OrdemServico {
+  id          String @id @default(uuid()) @db.Uuid
+  usuarioId   String @db.Uuid
+  clienteId   String @db.Uuid
+  nomeServico String
+  descricao   String
+
+  // Indica a etapa do trabalho.
+  // Concluir o serviço não significa que ele foi pago.
+  situacao SituacaoServico @default(ABERTO)
+
+  // Registra o acordo com o cliente:
+  // pagamento à vista ou dividido em parcelas.
+  condicaoPagamento CondicaoPagamento @default(A_VISTA)
+
+  desconto            Decimal   @default(0) @db.Decimal(12, 2)
+  acrescimo           Decimal   @default(0) @db.Decimal(12, 2)
+  comecoServico       DateTime  @default(now()) @db.Timestamptz(3)
+  terminoServico      DateTime? @db.Timestamptz(3)
+  cancelamentoServico DateTime? @db.Timestamptz(3)
+  vencimentoPagamento DateTime? @db.Date
+  criadoEm            DateTime  @default(now()) @db.Timestamptz(3)
+  atualizadoEm        DateTime  @updatedAt @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  // A relação composta impede associar um cliente de outro usuário.
+  cliente Cliente @relation(fields: [clienteId, usuarioId], references: [id, usuarioId], onDelete: Restrict)
+
+  registrosServico       RegistroServico[]
+  parcelasPrevistas      ParcelaPrevista[]
+  pagamentosRecebidos    PagamentoRecebido[]
+  distribuicoesPagamento DistribuicaoPagamento[]
+  agendamentos           Agendamento[]
+  contasPagar            ContaPagar[]
+
+  @@index([usuarioId, situacao, comecoServico])
+  @@index([clienteId, usuarioId])
+}
+
+// Uma etapa executada dentro da ordem, com tarifa histórica e itens próprios.
+model RegistroServico {
+  id               String   @id @default(uuid()) @db.Uuid
+  ordemDeServicoId String   @db.Uuid
+  dataServico      DateTime @db.Date
+  nomeServico      String
+  descricaoServico String
+
+  // Tempo total em minutos: 1h30 corresponde a 90.
+  minutosTrabalhados Int @default(0)
+
+  // Preço por hora copiado do perfil na criação deste registro.
+  // Deve ser preservado mesmo que o preço do perfil mude depois.
+  valorHora Decimal @db.Decimal(12, 2)
+
+  numeroDeslocamentos Int @default(0)
+
+  // Preço por deslocamento copiado do perfil na criação deste registro.
+  valorDeslocamento Decimal @db.Decimal(12, 2)
+
+  // Custo real total das viagens, como combustível e pedágio.
+  // É diferente do valor cobrado do cliente pelos deslocamentos.
+  custoDeslocamento Decimal @default(0) @db.Decimal(12, 2)
+
+  desconto     Decimal  @default(0) @db.Decimal(12, 2)
+  acrescimo    Decimal  @default(0) @db.Decimal(12, 2)
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+
+  ordemServico OrdemServico @relation(fields: [ordemDeServicoId], references: [id], onDelete: Restrict)
+
+  materiaisServicos MaterialServico[]
+
+  @@index([ordemDeServicoId, dataServico])
+}
+
+// Item com custo, valor cobrado e possível conta a pagar vinculada.
+model MaterialServico {
+  id                String @id @default(uuid()) @db.Uuid
+  registroServicoId String @db.Uuid
+
+  // Classifica o item como material, serviço de terceiro ou outra despesa.
+  tipo TipoItem
+
+  nomeMaterial        String
+  descricaoMaterial   String
+  quantidadeMaterial  Decimal   @default(1) @db.Decimal(12, 3)
+  valorGastoUnidade   Decimal   @db.Decimal(12, 2)
+  valorCobradoUnidade Decimal   @db.Decimal(12, 2)
+  fornecedor          String?
+  // Nulo em registros anteriores à inclusão do controle de pagamento.
+  jaPago              Boolean?  @default(false)
+  vencimentoPagamento DateTime? @db.Date
+  criadoEm            DateTime  @default(now()) @db.Timestamptz(3)
+  atualizadoEm        DateTime  @updatedAt @db.Timestamptz(3)
+
+  servico    RegistroServico @relation(fields: [registroServicoId], references: [id], onDelete: Restrict)
+  contaPagar ContaPagar?
+
+  @@index([registroServicoId])
+}
+
+// Previsão de parcela mantida no esquema para um fluxo ainda não exposto na interface.
+model ParcelaPrevista {
+  id               String @id @default(uuid()) @db.Uuid
+  ordemDeServicoId String @db.Uuid
+
+  // Posição desta parcela no acordo: 1, 2, 3...
+  // Não representa a quantidade total de parcelas.
+  numeroParcela Int
+
+  dataVencimento DateTime @db.Date
+  valorPrevisto  Decimal  @db.Decimal(12, 2)
+  criadoEm       DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm   DateTime @updatedAt @db.Timestamptz(3)
+
+  ordemServico OrdemServico @relation(fields: [ordemDeServicoId], references: [id], onDelete: Restrict)
+
+  distribuicoesPagamento DistribuicaoPagamento[]
+
+  @@unique([id, ordemDeServicoId])
+  @@unique([ordemDeServicoId, numeroParcela])
+  @@index([dataVencimento])
+}
+
+// Entrada financeira efetiva de uma ordem, inclusive histórico de anulação.
+model PagamentoRecebido {
+  id               String  @id @default(uuid()) @db.Uuid
+  ordemDeServicoId String  @db.Uuid
+  montanteRecebido Decimal @db.Decimal(12, 2)
+
+  // Data efetiva do recebimento.
+  // Pode ser diferente da data de criação do lançamento.
+  pagoEm DateTime @db.Timestamptz(3)
+
+  // Meio usado neste recebimento:
+  // Pix, dinheiro, transferência, cartão ou outro.
+  formaPagamento FormaPagamento
+
+  observacoes                       String?
+  dataAnulacaoLancamentoIncorreto   DateTime? @db.Timestamptz(3)
+  motivoAnulacaoLancamentoIncorreto String?
+  criadoEm                          DateTime  @default(now()) @db.Timestamptz(3)
+
+  ordemServico OrdemServico @relation(fields: [ordemDeServicoId], references: [id], onDelete: Restrict)
+
+  distribuicoesPagamento DistribuicaoPagamento[]
+
+  @@unique([id, ordemDeServicoId])
+  @@index([ordemDeServicoId, pagoEm])
+}
+
+// Relação de um recebimento com parcelas, reservada para o fluxo de parcelamento.
+model DistribuicaoPagamento {
+  id               String  @id @default(uuid()) @db.Uuid
+  ordemDeServicoId String  @db.Uuid
+  pagamentoId      String  @db.Uuid
+  parcelaId        String  @db.Uuid
+  montante         Decimal @db.Decimal(12, 2)
+
+  ordemServico OrdemServico @relation(fields: [ordemDeServicoId], references: [id], onDelete: Restrict)
+
+  // As relações compostas exigem que o pagamento
+  // e a parcela pertençam à mesma ordem de serviço.
+  pagamento PagamentoRecebido @relation(fields: [pagamentoId, ordemDeServicoId], references: [id, ordemDeServicoId], onDelete: Restrict)
+
+  parcela ParcelaPrevista @relation(fields: [parcelaId, ordemDeServicoId], references: [id, ordemDeServicoId], onDelete: Restrict)
+
+  @@unique([pagamentoId, parcelaId])
+  @@index([parcelaId, ordemDeServicoId])
+  @@index([ordemDeServicoId])
+}
+
+// Sessão autenticada identificada pelo hash do token do cookie.
+model SessaoAcesso {
+  id           String  @id @default(uuid()) @db.Uuid
+  usuarioId    String  @db.Uuid
+  tokenHash    String  @unique
+  nomeAparelho String?
+
+  // Momento em que o segundo fator foi confirmado para autorizar esta sessão.
+  segundoFatorVerificadoEm DateTime? @db.Timestamptz(3)
+
+  // Prazo máximo da sessão.
+  // O backend deve recusar o acesso depois desta data.
+  expiraEm DateTime @db.Timestamptz(3)
+
+  // Preenchido ao encerrar a sessão antes do prazo,
+  // por exemplo quando o usuário sai da conta.
+  revogadaEm DateTime? @db.Timestamptz(3)
+
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, expiraEm])
+}
+
+// Códigos de recuperação previstos para a autenticação de dois fatores.
+model CodigoRecuperacao {
+  id         String    @id @default(uuid()) @db.Uuid
+  usuarioId  String    @db.Uuid
+  codigoHash String    @unique
+  usadoEm    DateTime? @db.Timestamptz(3)
+  criadoEm   DateTime  @default(now()) @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+}
+
+// Conta manual ou despesa originada de um item de serviço.
+model ContaPagar {
+  id                String    @id @default(uuid()) @db.Uuid
+  usuarioId         String    @db.Uuid
+  ordemServicoId    String?   @db.Uuid
+  materialServicoId String?   @unique @db.Uuid
+  descricao         String
+  categoria         String?
+  valor             Decimal   @db.Decimal(12, 2)
+  vencimento        DateTime  @db.Date
+  pagoEm            DateTime? @db.Timestamptz(3)
+  criadoEm          DateTime  @default(now()) @db.Timestamptz(3)
+  atualizadoEm      DateTime  @updatedAt @db.Timestamptz(3)
+
+  usuario         Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  ordemServico    OrdemServico?    @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+  materialServico MaterialServico? @relation(fields: [materialServicoId], references: [id], onDelete: SetNull)
+
+  @@index([usuarioId, pagoEm, vencimento])
+}
+
+// Compromisso de agenda, opcionalmente associado a cliente e serviço.
+model Agendamento {
+  id             String    @id @default(uuid()) @db.Uuid
+  usuarioId      String    @db.Uuid
+  clienteId      String?   @db.Uuid
+  ordemServicoId String?   @db.Uuid
+  titulo         String
+  descricao      String?
+  inicio         DateTime  @db.Timestamptz(3)
+  fim            DateTime? @db.Timestamptz(3)
+  concluidoEm    DateTime? @db.Timestamptz(3)
+  criadoEm       DateTime  @default(now()) @db.Timestamptz(3)
+  atualizadoEm   DateTime  @updatedAt @db.Timestamptz(3)
+
+  usuario      Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  cliente      Cliente?      @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  ordemServico OrdemServico? @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+
+  @@index([usuarioId, concluidoEm, inicio])
+}

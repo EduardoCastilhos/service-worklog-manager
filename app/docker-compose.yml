@@ -1,0 +1,21 @@
+# Banco de desenvolvimento com dados persistidos no volume local.
+services:
+  postgres:
+    image: postgres:16
+    restart: always
+
+    environment:
+      POSTGRES_USER: swm_user
+      POSTGRES_PASSWORD: swm_password
+      POSTGRES_DB: swm_db
+
+    # Expõe a porta 5433 no computador sem alterar a porta interna do PostgreSQL.
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+# Preserva os registros entre reinicializações do contêiner.
+volumes:
+  postgres_data:
