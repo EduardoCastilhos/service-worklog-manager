@@ -1,8 +1,8 @@
 import 'dotenv/config'
-import { existsSync } from 'node:fs'
+import { createReadStream, existsSync, statSync } from 'node:fs'
 import path from 'node:path'
 import fastify from 'fastify'
-import fastifyStatic from '@fastify/static'
+import type { FastifyReply } from 'fastify'
 import { redirect } from './http/inertia.js'
 import { registerAuthRoutes } from './routes/auth.js'
 import { registerDashboardRoutes } from './routes/dashboard.js'
@@ -14,12 +14,42 @@ import { registerSettingsRoutes } from './routes/settings.js'
 
 // Configura a aplicação HTTP usada tanto pelo servidor local quanto pela Vercel.
 const app = fastify({ logger: true })
-const publicDir = path.join(process.cwd(), 'public')
-
-// Entrega os arquivos compilados do React pela mesma origem das rotas Inertia.
-if (existsSync(publicDir)) {
-  await app.register(fastifyStatic, { root: publicDir, prefix: '/', decorateReply: false })
+const publicDir = path.resolve(process.cwd(), 'public')
+const buildDir = path.join(publicDir, 'build')
+const assetTypes: Record<string, string> = {
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
 }
+
+/** Entrega um arquivo público localmente; na Vercel, public/ é servido pela CDN. */
+function sendAsset(reply: FastifyReply, filePath: string) {
+  if (!existsSync(filePath) || !statSync(filePath).isFile()) return reply.code(404).send()
+  return reply
+    .type(assetTypes[path.extname(filePath)] ?? 'application/octet-stream')
+    .send(createReadStream(filePath))
+}
+
+// Expõe somente o favicon e os arquivos compilados, sem permitir sair de public/build.
+app.get('/favicon.svg', (_request, reply) => sendAsset(reply, path.join(publicDir, 'favicon.svg')))
+app.get('/build/*', (request, reply) => {
+  const relativePath = (request.params as { '*': string })['*']
+  const filePath = path.resolve(buildDir, relativePath)
+  const insideBuild = path.relative(buildDir, filePath)
+  if (
+    !insideBuild ||
+    insideBuild === '..' ||
+    insideBuild.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(insideBuild)
+  )
+    return reply.code(404).send()
+  return sendAsset(reply, filePath)
+})
 
 // Recusa alterações originadas de outro host antes de executar qualquer rota.
 app.addHook('onRequest', async (request, reply) => {

@@ -34,7 +34,6 @@
     "vite": "^8.3.4"
   },
   "dependencies": {
-    "@fastify/static": "^10.1.6",
     "@inertiajs/react": "^3.9.1",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
