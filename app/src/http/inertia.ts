@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-/** Referencia os arquivos que o Vite grava em public/build e a Vercel entrega como estáticos. */
+/** Referencia os arquivos que o Vite grava em public/build para o servidor entregar. */
 function assets() {
   return '<link rel="stylesheet" href="/build/assets/app.css"><script type="module" src="/build/assets/app.js"></script>'
 }

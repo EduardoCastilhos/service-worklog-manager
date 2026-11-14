@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import fastify from 'fastify'
 import type { FastifyReply } from 'fastify'
 import { redirect } from './http/inertia.js'
@@ -15,7 +16,7 @@ import { registerSettingsRoutes } from './routes/settings.js'
 
 // Configura a aplicação HTTP usada tanto pelo servidor local quanto pela Vercel.
 const app = fastify({ logger: true })
-const publicDir = path.resolve(process.cwd(), 'public')
+const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public')
 const buildDir = path.join(publicDir, 'build')
 const assetTypes: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -28,7 +29,7 @@ const assetTypes: Record<string, string> = {
   '.woff2': 'font/woff2',
 }
 
-/** Entrega um arquivo público localmente; na Vercel, public/ é servido pela CDN. */
+/** Entrega um arquivo público tanto localmente quanto na função da Vercel. */
 function sendAsset(reply: FastifyReply, filePath: string) {
   if (!existsSync(filePath) || !statSync(filePath).isFile()) return reply.code(404).send()
   return reply
