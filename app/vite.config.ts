@@ -1,8 +1,21 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Gera os assets usados pelo Fastify e um manifesto em caminho fácil de incluir na Vercel.
+// Gera os assets em public/ para que a Vercel os publique junto do servidor Fastify.
 export default defineConfig({
   plugins: [react()],
-  build: { manifest: 'manifest.json', outDir: 'dist' },
+  publicDir: false,
+  build: {
+    outDir: 'public/build',
+    emptyOutDir: true,
+    rollupOptions: {
+      input: 'src/client/main.tsx',
+      output: {
+        entryFileNames: 'assets/app.js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: (asset) =>
+          asset.name?.endsWith('.css') ? 'assets/app.css' : 'assets/[name]-[hash][extname]',
+      },
+    },
+  },
 })

@@ -14,11 +14,11 @@ import { registerSettingsRoutes } from './routes/settings.js'
 
 // Configura a aplicação HTTP usada tanto pelo servidor local quanto pela Vercel.
 const app = fastify({ logger: true })
-const dist = path.join(process.cwd(), 'dist')
+const publicDir = path.join(process.cwd(), 'public')
 
 // Entrega os arquivos compilados do React pela mesma origem das rotas Inertia.
-if (existsSync(dist)) {
-  await app.register(fastifyStatic, { root: dist, prefix: '/', decorateReply: false })
+if (existsSync(publicDir)) {
+  await app.register(fastifyStatic, { root: publicDir, prefix: '/', decorateReply: false })
 }
 
 // Recusa alterações originadas de outro host antes de executar qualquer rota.

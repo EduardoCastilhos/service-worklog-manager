@@ -35,7 +35,7 @@ O Compose expõe o PostgreSQL em `localhost:5433`. O usuário, a senha e o banco
 | Comando | Efeito |
 | --- | --- |
 | `npm run dev` | Compila a interface e inicia Fastify e Vite em modo de observação. |
-| `npm run build` | Gera `dist/` e o manifesto de arquivos do Vite. |
+| `npm run build` | Gera os arquivos do frontend em `app/public/build/`. |
 | `npm start` | Inicia o servidor usando o build existente. |
 | `npm run typecheck` | Confere os tipos de servidor e cliente. |
 | `npm test` | Executa testes das regras de cálculo. |
@@ -53,9 +53,9 @@ npm run build
 npm start
 ```
 
-O diretório `dist/`, o cliente Prisma gerado e o arquivo `.env` não entram no controle de versão.
+O diretório `app/public/build/`, o cliente Prisma gerado e o arquivo `.env` não entram no controle de versão.
 
-Para publicar na Vercel, siga o [guia de deploy](docs/DEPLOY_VERCEL.md).
+Para publicar na Vercel, siga o [guia de deploy](DEPLOY_VERCEL.md).
 
 ## Funcionalidades
 
@@ -86,5 +86,3 @@ O esquema Prisma inclui entidades para parcelamento e autenticação em duas eta
 | `app/src/client/components/` | Layout e componentes compartilhados. |
 | `app/src/client/style.css` | Estilos e regras responsivas. |
 | `app/src/client/types.ts` | Contratos dos dados enviados às telas. |
-
-Para entender o fluxo de uma requisição, as regras de cálculo, os contratos das rotas e os cuidados para estender o projeto, consulte [docs/ARQUITETURA.md](docs/ARQUITETURA.md).

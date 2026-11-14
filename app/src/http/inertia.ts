@@ -1,18 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs'
-import path from 'node:path'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-// Localiza os arquivos da interface gerados pelo Vite no build.
-const dist = path.join(process.cwd(), 'dist')
-const manifestPath = path.join(dist, 'manifest.json')
-
-/** Lê o manifesto a cada requisição para refletir recompilações do Vite. */
+/** Referencia os arquivos que o Vite grava em public/build e a Vercel entrega como estáticos. */
 function assets() {
-  if (!existsSync(manifestPath))
-    throw new Error('Frontend não compilado. Execute npm run build antes de iniciar o servidor.')
-  const entry = JSON.parse(readFileSync(manifestPath, 'utf8'))['index.html']
-  if (!entry?.file) throw new Error('Entrada index.html ausente no manifesto do Vite.')
-  return `${(entry.css ?? []).map((file: string) => `<link rel="stylesheet" href="/${file}">`).join('')}<script type="module" src="/${entry.file}"></script>`
+  return '<link rel="stylesheet" href="/build/assets/app.css"><script type="module" src="/build/assets/app.js"></script>'
 }
 /** Escapa o JSON embutido no HTML para que dados do usuário não fechem a tag script. */
 function scriptJson(value: unknown) {

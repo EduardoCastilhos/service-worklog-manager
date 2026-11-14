@@ -7,5 +7,6 @@ node_modules
 
 /src/generated/prisma
 /dist
+/public/build
 
 ARQUITETURA.md
