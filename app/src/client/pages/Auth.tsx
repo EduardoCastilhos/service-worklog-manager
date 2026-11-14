@@ -21,6 +21,7 @@ function AuthShell({
         <div className="auth-art">
           <div className="art-card">
             <h3 className="subtitulo">SERVIÇOS · AGENDA · FINANÇAS</h3>
+            <h1 className="titulo"> SERVICE WORKLOG MANAGER </h1>
             <div className="art-line" />
             <p className="rodape-texto">Um registro claro para cada etapa do seu trabalho.</p>
           </div>

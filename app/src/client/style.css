@@ -1394,6 +1394,15 @@ textarea {
   color: #ffffff83;
 }
 
+.titulo{
+  font-family: 'Poppins';
+  font-weight: 700;
+  font-size: 60px;
+  color: #29362e;
+  text-transform: uppercase;
+  margin-left: -3px;
+}
+
 .titulo-dashboard {
   font-family: 'Poppins';
   font-weight: 700;
