@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { createReadStream, existsSync, statSync } from 'node:fs'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
 import fastify from 'fastify'
 import type { FastifyReply } from 'fastify'
@@ -79,4 +80,10 @@ app.setErrorHandler((error, request, reply) => {
   return reply.code(500).send('Ocorreu um erro inesperado.')
 })
 
-export default app
+// Expõe o formato (requisição, resposta) reconhecido pela função da Vercel.
+export default async function handler(request: IncomingMessage, response: ServerResponse) {
+  await app.ready()
+  app.server.emit('request', request, response)
+}
+
+export { app }

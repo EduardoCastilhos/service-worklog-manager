@@ -2,7 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import app from '../src/app.js'
+import { app } from '../src/app.js'
 import { db } from '../src/db.js'
 
 test('cadastro, serviço contínuo, recebimento, conta e agenda', async () => {
